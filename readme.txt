@@ -6,9 +6,7 @@ echo "Hola, ¿cómo estás?" | piper --model voices/es_MX-claude-high.onnx --out
 
 
 
-to getserver running
-
-cd piper
+to getserver running. From the current direcoty SpanishTTS
 python3 server.py
 
 
