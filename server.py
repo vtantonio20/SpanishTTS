@@ -9,7 +9,7 @@ print("Starting Flask server...")
 app = Flask(__name__)
 CORS(app)  # allow all origins
 
-
+# VOICE_MODEL = "voices/es_AR-daniela-high.onnx"  # relative to server.py
 VOICE_MODEL = "voices/es_MX-claude-high.onnx"  # relative to server.py
 DB_FILE = "tts_db.txt"
 WAV_PATTERN = "output*.wav"
@@ -30,7 +30,7 @@ def tts():
     # Check input
     text_field = data.get("text", "")
     speed = float(data.get("speed", 1.0))
-
+    delimiter = data.get("delimiter", "")
     if not text_field:
         return {"error": "No text provided"}, 400
 
@@ -38,7 +38,7 @@ def tts():
     clear_existing_files()
 
     # Split the text field by comma into a list
-    text_list = [t.strip() for t in text_field.split(",") if t.strip()]
+    text_list = [t.strip() for t in text_field.split(delimiter) if t.strip()]
     if not text_list:
         return {"error": "No valid text entries found"}, 400
 
@@ -58,7 +58,7 @@ def tts():
                 return jsonify({"error": f"Piper failed: {e}"}), 500
 
             # Save entry to text DB
-            db.write(f'{entry}, {output_file}\n')
+            db.write(f'{entry}{delimiter} {output_file}\n')
             generated_files.append(output_file)
 
 
