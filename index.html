@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Piper TTS Processor</title>
+    <style>
+        /* Make all phrase text white (hidden) initially */
+        .hidden-phrase {
+            color: white;
+        }
+        .visible-phrase {
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <h2>Piper TTS Input</h2>
+
+    <button type="button" onclick="toggleInputSection()">Show/Hide Input Section</button>
+
+    <div id="input-section">
+        <!-- Multi-line textbox -->
+        <textarea id="text" rows="6" cols="60" placeholder="Enter multiple lines of text here"></textarea>
+        <br><br>
+
+        <!-- Speed slider -->
+        <label for="speed">Select Speed: </label>
+        <input type="range" id="speed" min="0" max="2" step="1" value="1" list="speed-list">
+        <datalist id="speed-list">
+            <option value="0" label="0.8"></option>
+            <option value="1" label="1.0"></option>
+            <option value="2" label="1.5"></option>
+        </datalist>
+        <span id="speed-value">1.0</span>
+        <br><br>
+        
+        <!-- Button to send request -->
+        <button type="button" onclick="processRequest()">Process Request</button>
+    </div>
+    
+
+    <h3>Generated Phrases</h3>
+    <button onclick="loadDB()">Load DB</button>
+    <button onclick="togglePhraseColumn()">Hide/Show Phrase Column</button>
+
+    <table id="db-table" border="1">
+        <thead>
+            <tr>
+                <th>Phrase</th>
+                <th>File</th>
+                <th>Action</th>
+                <th>Show/Hide</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rows will be added dynamically -->
+        </tbody>
+    </table>
+
+    <script>
+        let delimiter = ",";
+
+        // Toggle input section visibility
+        function toggleInputSection() {
+            const section = document.getElementById("input-section");
+            section.style.display = section.style.display === "none" ? "" : "none";
+        }
+
+        const speedMap = {0: 0.8, 1: 1.0, 2: 1.5};
+        const speedSlider = document.getElementById("speed");
+        const speedValueDisplay = document.getElementById("speed-value");
+
+        speedSlider.addEventListener("input", () => {
+            speedValueDisplay.textContent = speedMap[speedSlider.value];
+        });
+
+        async function processRequest() {
+            event.preventDefault();
+            const text = document.getElementById("text").value;
+            const speed = speedMap[speedSlider.value];
+            if (!text) {
+                alert("Please enter some text.");
+                return;
+            }
+            try {
+                await fetch("http://localhost:8000/tts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text, speed, delimiter: delimiter })
+                });
+            } catch (err) {
+                console.error(err);
+                alert("Failed to send request to Flask server.");
+            }
+        }
+    </script>
+
+    <script>
+    let phraseVisible = true;
+
+    function togglePhraseColumn() {
+        phraseVisible = !phraseVisible;
+        const table = document.getElementById("db-table");
+        const th = table.querySelector("thead th:first-child");
+        const display = phraseVisible ? "" : "none";
+        th.style.display = display;
+        table.querySelectorAll("tbody tr").forEach(row => {
+            row.children[0].style.display = display;
+        });
+    }
+
+    async function loadDB() {
+        const tableBody = document.querySelector("#db-table tbody");
+        tableBody.innerHTML = ""; // Clear previous rows
+
+        try {
+            const response = await fetch("http://localhost:8000/getdb");
+            const data = await response.json();
+
+            if (!response.ok) {
+                alert(`Error fetching DB: ${data.error}`);
+                return;
+            }
+
+            data.db.forEach((line, idx) => {
+                const [phrase, file] = line.split(delimiter).map(s => s.trim().replace(/"/g, ""));
+                const row = document.createElement("tr");
+
+                // Phrase cell starts hidden (white text)
+                const phraseCell = document.createElement("td");
+                phraseCell.textContent = phrase;
+                phraseCell.classList.add("hidden-phrase");
+
+                const fileCell = document.createElement("td");
+                fileCell.textContent = file;
+
+                const actionCell = document.createElement("td");
+                const playButton = document.createElement("button");
+                playButton.textContent = "Play Audio";
+                playButton.onclick = async () => {
+                    try {
+                        const match = file.match(/output(\d+)\.wav/);
+                        if (!match) {
+                            alert("Invalid file name");
+                            return;
+                        }
+                        const fileId = match[1];
+                        const response = await fetch(`http://localhost:8000/getaudio${fileId}`);
+                        if (!response.ok) {
+                            alert("Failed to fetch audio file");
+                            return;
+                        }
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        const audio = new Audio(url);
+                        audio.play();
+                    } catch (err) {
+                        console.error(err);
+                        alert("Error playing audio");
+                    }
+                };
+                actionCell.appendChild(playButton);
+
+                // New Show/Hide button for this row
+                const toggleCell = document.createElement("td");
+                const toggleButton = document.createElement("button");
+                toggleButton.textContent = "Show Phrase";
+                toggleButton.onclick = () => {
+                    const isHidden = phraseCell.classList.contains("hidden-phrase");
+                    phraseCell.classList.toggle("hidden-phrase", !isHidden);
+                    phraseCell.classList.toggle("visible-phrase", isHidden);
+                    toggleButton.textContent = isHidden ? "Hide Phrase" : "Show Phrase";
+                };
+                toggleCell.appendChild(toggleButton);
+
+                row.appendChild(phraseCell);
+                row.appendChild(fileCell);
+                row.appendChild(actionCell);
+                row.appendChild(toggleCell);
+
+                tableBody.appendChild(row);
+            });
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to fetch DB from backend.");
+        }
+    }
+    </script>
+</body>
+</html>
