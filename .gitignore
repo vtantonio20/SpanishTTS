@@ -1,3 +1,4 @@
 *.wav
 tts_db.txt
 *.onnx
+*.onnx.json

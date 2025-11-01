@@ -24,13 +24,18 @@
 
         <!-- Speed slider -->
         <label for="speed">Select Speed: </label>
-        <input type="range" id="speed" min="0" max="2" step="1" value="1" list="speed-list">
+        <input type="range" id="speed" min="0.5" max="1.0" step="0.01" value="0.8" list="speed-list">
         <datalist id="speed-list">
-            <option value="0" label="0.8"></option>
-            <option value="1" label="1.0"></option>
-            <option value="2" label="1.5"></option>
+            <option value="0.5" label="0.5"></option>
+            <option value="0.6" label="0.6"></option>
+            <option value="0.7" label="0.7"></option>
+            <option value="0.75" label="0.75"></option>
+            <option value="0.8" label="0.8"></option>
+            <option value="0.9" label="0.9"></option>
+            <option value="1.0" label="1.0"></option>
         </datalist>
-        <span id="speed-value">1.0</span>
+        <span id="speed-value">0.8</span>
+
         <br><br>
         
         <!-- Button to send request -->
@@ -41,14 +46,17 @@
     <h3>Generated Phrases</h3>
     <button onclick="loadDB()">Load DB</button>
     <button onclick="togglePhraseColumn()">Hide/Show Phrase Column</button>
+    <button onclick="toggleTranslatedColumn()">Hide/Show Translated Column</button>
 
     <table id="db-table" border="1">
         <thead>
             <tr>
                 <th>Phrase</th>
                 <th>File</th>
+                <th>Translated</th>
                 <th>Action</th>
-                <th>Show/Hide</th>
+                <th>Show/Hide Phrase</th>
+                <th>Show/Hide Translated</th>
             </tr>
         </thead>
         <tbody>
@@ -57,26 +65,29 @@
     </table>
 
     <script>
-        let delimiter = ",";
+        let delimiter = "|";
+        let phraseVisible = true;
+        let translatedVisible = true;
 
         // Toggle input section visibility
         function toggleInputSection() {
             const section = document.getElementById("input-section");
             section.style.display = section.style.display === "none" ? "" : "none";
         }
-
-        const speedMap = {0: 0.8, 1: 1.0, 2: 1.5};
+        
         const speedSlider = document.getElementById("speed");
         const speedValueDisplay = document.getElementById("speed-value");
 
+        // Update displayed speed dynamically
         speedSlider.addEventListener("input", () => {
-            speedValueDisplay.textContent = speedMap[speedSlider.value];
+            const currentSpeed = parseFloat(speedSlider.value);
+            speedValueDisplay.textContent = currentSpeed.toFixed(2);
         });
 
         async function processRequest() {
             event.preventDefault();
             const text = document.getElementById("text").value;
-            const speed = speedMap[speedSlider.value];
+            // const speed = speedMap[speedSlider.value];
             if (!text) {
                 alert("Please enter some text.");
                 return;
@@ -85,106 +96,140 @@
                 await fetch("http://localhost:8000/tts", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text, speed, delimiter: delimiter })
+                    body: JSON.stringify({ text, speed: 1, delimiter: delimiter })
                 });
             } catch (err) {
                 console.error(err);
                 alert("Failed to send request to Flask server.");
             }
         }
-    </script>
 
-    <script>
-    let phraseVisible = true;
-
-    function togglePhraseColumn() {
-        phraseVisible = !phraseVisible;
-        const table = document.getElementById("db-table");
-        const th = table.querySelector("thead th:first-child");
-        const display = phraseVisible ? "" : "none";
-        th.style.display = display;
-        table.querySelectorAll("tbody tr").forEach(row => {
-            row.children[0].style.display = display;
-        });
-    }
-
-    async function loadDB() {
-        const tableBody = document.querySelector("#db-table tbody");
-        tableBody.innerHTML = ""; // Clear previous rows
-
-        try {
-            const response = await fetch("http://localhost:8000/getdb");
-            const data = await response.json();
-
-            if (!response.ok) {
-                alert(`Error fetching DB: ${data.error}`);
-                return;
-            }
-
-            data.db.forEach((line, idx) => {
-                const [phrase, file] = line.split(delimiter).map(s => s.trim().replace(/"/g, ""));
-                const row = document.createElement("tr");
-
-                // Phrase cell starts hidden (white text)
-                const phraseCell = document.createElement("td");
-                phraseCell.textContent = phrase;
-                phraseCell.classList.add("hidden-phrase");
-
-                const fileCell = document.createElement("td");
-                fileCell.textContent = file;
-
-                const actionCell = document.createElement("td");
-                const playButton = document.createElement("button");
-                playButton.textContent = "Play Audio";
-                playButton.onclick = async () => {
-                    try {
-                        const match = file.match(/output(\d+)\.wav/);
-                        if (!match) {
-                            alert("Invalid file name");
-                            return;
-                        }
-                        const fileId = match[1];
-                        const response = await fetch(`http://localhost:8000/getaudio${fileId}`);
-                        if (!response.ok) {
-                            alert("Failed to fetch audio file");
-                            return;
-                        }
-                        const blob = await response.blob();
-                        const url = URL.createObjectURL(blob);
-                        const audio = new Audio(url);
-                        audio.play();
-                    } catch (err) {
-                        console.error(err);
-                        alert("Error playing audio");
-                    }
-                };
-                actionCell.appendChild(playButton);
-
-                // New Show/Hide button for this row
-                const toggleCell = document.createElement("td");
-                const toggleButton = document.createElement("button");
-                toggleButton.textContent = "Show Phrase";
-                toggleButton.onclick = () => {
-                    const isHidden = phraseCell.classList.contains("hidden-phrase");
-                    phraseCell.classList.toggle("hidden-phrase", !isHidden);
-                    phraseCell.classList.toggle("visible-phrase", isHidden);
-                    toggleButton.textContent = isHidden ? "Hide Phrase" : "Show Phrase";
-                };
-                toggleCell.appendChild(toggleButton);
-
-                row.appendChild(phraseCell);
-                row.appendChild(fileCell);
-                row.appendChild(actionCell);
-                row.appendChild(toggleCell);
-
-                tableBody.appendChild(row);
+        // Toggle Phrase column
+        function togglePhraseColumn() {
+            phraseVisible = !phraseVisible;
+            const table = document.getElementById("db-table");
+            const th = table.querySelector("thead th:nth-child(1)");
+            const display = phraseVisible ? "" : "none";
+            th.style.display = display;
+            table.querySelectorAll("tbody tr").forEach(row => {
+                row.children[0].style.display = display;
             });
-
-        } catch (err) {
-            console.error(err);
-            alert("Failed to fetch DB from backend.");
         }
-    }
+
+        // Toggle Translated column
+        function toggleTranslatedColumn() {
+            translatedVisible = !translatedVisible;
+            const table = document.getElementById("db-table");
+            const th = table.querySelector("thead th:nth-child(3)");
+            const display = translatedVisible ? "" : "none";
+            th.style.display = display;
+            table.querySelectorAll("tbody tr").forEach(row => {
+                row.children[2].style.display = display;
+            });
+        }
+
+        async function loadDB() {
+            const tableBody = document.querySelector("#db-table tbody");
+            tableBody.innerHTML = ""; // Clear previous rows
+
+            try {
+                const response = await fetch("http://localhost:8000/getdb");
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(`Error fetching DB: ${data.error}`);
+                    return;
+                }
+
+                data.db.forEach((line, idx) => {
+                    const [phrase, file, translated] = line.split(delimiter).map(s => s.trim().replace(/"/g, ""));
+                    const row = document.createElement("tr");
+
+                    // Phrase cell starts hidden
+                    const phraseCell = document.createElement("td");
+                    phraseCell.textContent = phrase;
+                    phraseCell.classList.add("hidden-phrase");
+
+                    // File cell
+                    const fileCell = document.createElement("td");
+                    fileCell.textContent = file;
+
+                    // Translated cell starts hidden
+                    const translatedCell = document.createElement("td");
+                    translatedCell.textContent = translated;
+                    translatedCell.classList.add("hidden-phrase");
+
+                    // Action cell
+                    const actionCell = document.createElement("td");
+                    const playButton = document.createElement("button");
+                    playButton.textContent = "Play Audio";
+                    playButton.onclick = async () => {
+                        try {
+                            const match = file.match(/output(\d+)\.wav/);
+                            if (!match) {
+                                alert("Invalid file name");
+                                return;
+                            }
+                            const fileId = match[1];
+                            const response = await fetch(`http://localhost:8000/getaudio${fileId}`);
+                            if (!response.ok) {
+                                alert("Failed to fetch audio file");
+                                return;
+                            }
+                            const blob = await response.blob();
+                            const url = URL.createObjectURL(blob);
+                            const audio = new Audio(url);
+                            const currentSpeed = parseFloat(speedSlider.value);
+                            audio.playbackRate = currentSpeed;
+
+        // Update the displayed speed to match currentSpeed
+        speedValueDisplay.textContent = currentSpeed.toFixed(2);
+        audio.play();
+                        } catch (err) {
+                            console.error(err);
+                            alert("Error playing audio");
+                        }
+                    };
+                    actionCell.appendChild(playButton);
+
+                    // Show/Hide buttons for this row
+                    const togglePhraseCell = document.createElement("td");
+                    const togglePhraseButton = document.createElement("button");
+                    togglePhraseButton.textContent = "Show Phrase";
+                    togglePhraseButton.onclick = () => {
+                        const isHidden = phraseCell.classList.contains("hidden-phrase");
+                        phraseCell.classList.toggle("hidden-phrase", !isHidden);
+                        phraseCell.classList.toggle("visible-phrase", isHidden);
+                        togglePhraseButton.textContent = isHidden ? "Hide Phrase" : "Show Phrase";
+                    };
+                    togglePhraseCell.appendChild(togglePhraseButton);
+
+                    const toggleTranslatedCell = document.createElement("td");
+                    const toggleTranslatedButton = document.createElement("button");
+                    toggleTranslatedButton.textContent = "Show Translated";
+                    toggleTranslatedButton.onclick = () => {
+                        const isHidden = translatedCell.classList.contains("hidden-phrase");
+                        translatedCell.classList.toggle("hidden-phrase", !isHidden);
+                        translatedCell.classList.toggle("visible-phrase", isHidden);
+                        toggleTranslatedButton.textContent = isHidden ? "Hide Translated" : "Show Translated";
+                    };
+                    toggleTranslatedCell.appendChild(toggleTranslatedButton);
+
+                    row.appendChild(phraseCell);
+                    row.appendChild(fileCell);
+                    row.appendChild(translatedCell);
+                    row.appendChild(actionCell);
+                    row.appendChild(togglePhraseCell);
+                    row.appendChild(toggleTranslatedCell);
+
+                    tableBody.appendChild(row);
+                });
+
+            } catch (err) {
+                console.error(err);
+                alert("Failed to fetch DB from backend.");
+            }
+        }
     </script>
 </body>
 </html>
