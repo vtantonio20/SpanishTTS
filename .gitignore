@@ -1,3 +1,5 @@
 *.wav
 tts_db.txt
 *.onnx
+lib/*.tgz
+lib/*.tar.gz
